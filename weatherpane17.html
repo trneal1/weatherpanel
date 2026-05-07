@@ -208,6 +208,11 @@ body{
   height:100%;
 }
 
+.cloud-tile-layer{
+  filter:brightness(1.08) contrast(1.75) saturate(0.65);
+  mix-blend-mode:normal;
+}
+
 .location-crosshair{
   width:15px;
   height:15px;
@@ -329,6 +334,7 @@ body{
 .forecast-strip{
   display:grid;
   gap:10px;
+  height:100%;
 }
 
 .forecast-card{
@@ -342,6 +348,46 @@ body{
   align-items:center;
 
   padding:8px;
+  cursor:pointer;
+}
+
+.forecast-card:hover{
+  background:rgba(255,255,255,0.09);
+}
+
+.forecast-card.forecast-hourly-card:hover{
+  background:rgba(255,255,255,0.05);
+}
+
+.forecast-layout{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 46px;
+  gap:10px;
+  height:100%;
+}
+
+.forecast-panel-stack{
+  min-width:0;
+  height:100%;
+}
+
+.forecast-toggle-btn{
+  width:46px;
+  height:100%;
+  border:none;
+  border-radius:14px;
+  background:rgba(255,255,255,0.1);
+  color:white;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:13px;
+  font-weight:bold;
+}
+
+.forecast-toggle-btn:hover{
+  background:rgba(255,255,255,0.18);
 }
 
 .forecast-day{
@@ -563,6 +609,63 @@ canvas{
 #modalCanvas{
   width:100% !important;
   height:100% !important;
+}
+
+.day-modal-content{
+  width:min(520px, calc(100vw - 28px));
+  height:auto;
+  max-width:520px;
+  padding:18px;
+}
+
+.day-detail-title{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  padding-right:40px;
+  margin-bottom:16px;
+}
+
+.day-detail-title h2{
+  font-size:22px;
+  line-height:1;
+}
+
+.day-detail-summary{
+  font-size:13px;
+  opacity:0.78;
+  text-transform:capitalize;
+  margin-top:5px;
+}
+
+.day-detail-temp{
+  font-size:34px;
+  font-weight:900;
+}
+
+.day-detail-grid{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:10px;
+}
+
+.day-detail-item{
+  background:rgba(255,255,255,0.06);
+  border:1px solid rgba(255,255,255,0.08);
+  border-radius:10px;
+  padding:10px;
+}
+
+.day-detail-label{
+  font-size:11px;
+  opacity:0.65;
+  margin-bottom:5px;
+}
+
+.day-detail-value{
+  font-size:17px;
+  font-weight:bold;
 }
 
 @media(max-width:1100px){
@@ -1013,30 +1116,39 @@ canvas{
 
   <div
     id="forecastWrapper"
-    onclick="toggleForecastPanel()"
-    style="
-      cursor:pointer;
-      height:100%;
-    "
+    class="forecast-layout"
   >
 
-    <div
-      class="forecast-strip"
-      id="dailyForecastPanel"
-      style="
-        display:grid;
-        grid-template-columns:repeat(8,1fr);
-      "
-    ></div>
+    <div class="forecast-panel-stack">
 
-    <div
-      class="forecast-strip"
-      id="hourlyForecastPanel"
-      style="
-        display:none;
-        grid-template-columns:repeat(12,1fr);
-      "
-    ></div>
+      <div
+        class="forecast-strip"
+        id="dailyForecastPanel"
+        style="
+          display:grid;
+          grid-template-columns:repeat(8,1fr);
+        "
+      ></div>
+
+      <div
+        class="forecast-strip"
+        id="hourlyForecastPanel"
+        style="
+          display:none;
+          grid-template-columns:repeat(12,1fr);
+        "
+      ></div>
+
+    </div>
+
+    <button
+      class="forecast-toggle-btn"
+      id="forecastToggleBtn"
+      onclick="toggleForecastPanel()"
+      title="Show hourly forecast"
+    >
+      12h
+    </button>
 
   </div>
 
@@ -1118,6 +1230,30 @@ canvas{
 
   </div>
 
+  <div
+    id="dayDetailModal"
+    class="modal-overlay"
+    onclick="closeDayDetailModal()"
+  >
+
+    <div
+      class="modal-content day-modal-content"
+      onclick="event.stopPropagation()"
+    >
+
+      <button
+        class="modal-close-btn"
+        onclick="closeDayDetailModal()"
+      >
+        ✕
+      </button>
+
+      <div id="dayDetailContent"></div>
+
+    </div>
+
+  </div>
+
 </div>
 
 <script>
@@ -1183,22 +1319,16 @@ function updateLocationCrosshair(lat,lon){
 }
 
 // ======================================
-// RADAR
+// MAP WEATHER LAYERS
 // ======================================
 
 let radarLayer = null;
+let cloudLayer = null;
+let activeMapWeatherLayer = 'radar';
 
-function updateRadar(){
+function createRadarLayer(){
 
-  if(radarLayer){
-
-    map.removeLayer(
-      radarLayer
-    );
-
-  }
-
-  radarLayer = L.tileLayer.wms(
+  return L.tileLayer.wms(
 
     'https://mesonet.agron.iastate.edu/cgi-bin/wms/nexrad/n0q.cgi',
 
@@ -1216,14 +1346,92 @@ function updateRadar(){
 
   );
 
-  radarLayer.addTo(map);
+}
+
+function createCloudLayer(){
+
+  return L.tileLayer(
+
+    `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/goes_east_conus_ch02/{z}/{x}/{y}.png?_t=${Date.now()}`,
+
+    {
+
+      className:'cloud-tile-layer',
+      opacity:0.62
+
+    }
+
+  );
 
 }
 
-updateRadar();
+function removeMapWeatherLayers(){
+
+  if(radarLayer){
+
+    map.removeLayer(
+      radarLayer
+    );
+
+  }
+
+  if(cloudLayer){
+
+    map.removeLayer(
+      cloudLayer
+    );
+
+  }
+
+}
+
+function updateMapWeatherLayer(){
+
+  removeMapWeatherLayers();
+
+  if(activeMapWeatherLayer === 'clouds'){
+
+    cloudLayer =
+      createCloudLayer();
+
+    cloudLayer.addTo(map);
+
+  }
+  else{
+
+    radarLayer =
+      createRadarLayer();
+
+    radarLayer.addTo(map);
+
+  }
+
+  updateRadarCountdown();
+
+}
+
+function toggleMapWeatherLayer(){
+
+  activeMapWeatherLayer =
+    activeMapWeatherLayer === 'radar'
+      ? 'clouds'
+      : 'radar';
+
+  updateMapWeatherLayer();
+
+  radarRefreshSeconds = 300;
+
+  updateRadarCountdown();
+
+}
+
+map.on(
+  'click',
+  toggleMapWeatherLayer
+);
 
 // ======================================
-// RADAR TIMER
+// MAP WEATHER LAYER TIMER
 // ======================================
 
 let radarRefreshSeconds = 300;
@@ -1240,11 +1448,11 @@ function updateRadarCountdown(){
     'radarCountdown'
   ).innerText =
 
-    `Radar refresh in ${minutes}:${String(seconds).padStart(2,'0')}`;
+    `${activeMapWeatherLayer === 'radar' ? 'Radar' : 'Clouds'} refresh in ${minutes}:${String(seconds).padStart(2,'0')}`;
 
 }
 
-updateRadarCountdown();
+updateMapWeatherLayer();
 
 setInterval(()=>{
 
@@ -1252,7 +1460,7 @@ setInterval(()=>{
 
   if(radarRefreshSeconds <= 0){
 
-    updateRadar();
+    updateMapWeatherLayer();
 
     radarRefreshSeconds = 300;
 
@@ -1723,6 +1931,21 @@ function toggleForecastPanel(){
       ? 'none'
       : 'grid';
 
+  const toggleBtn =
+    document.getElementById(
+      'forecastToggleBtn'
+    );
+
+  toggleBtn.innerText =
+    showingDailyForecast
+      ? '12h'
+      : '8d';
+
+  toggleBtn.title =
+    showingDailyForecast
+      ? 'Show hourly forecast'
+      : 'Show 8 day forecast';
+
 }
 
 // ======================================
@@ -2082,6 +2305,133 @@ function closeChartModal(){
 
 }
 
+function openDayDetailModal(dayIndex){
+
+  if(!latestWeatherData || !latestWeatherData.daily[dayIndex]){
+
+    return;
+
+  }
+
+  const dayData =
+    latestWeatherData.daily[dayIndex];
+
+  const date =
+    new Date();
+
+  date.setDate(
+    date.getDate() + dayIndex
+  );
+
+  const dayName =
+    date.toLocaleDateString(
+      'en-US',
+      {
+        weekday:'long',
+        month:'short',
+        day:'numeric'
+      }
+    );
+
+  const rainAmount =
+    dayData.rain
+      ? `${dayData.rain.toFixed(2)}" rain`
+      : '0.00" rain';
+
+  document.getElementById(
+    'dayDetailContent'
+  ).innerHTML = `
+
+    <div class="day-detail-title">
+      <div>
+        <h2>${dayName}</h2>
+        <div class="day-detail-summary">
+          ${dayData.weather[0].description}
+        </div>
+      </div>
+      <div class="day-detail-temp">
+        ${Math.round(dayData.temp.max)}°
+      </div>
+    </div>
+
+    <div class="day-detail-grid">
+      <div class="day-detail-item">
+        <div class="day-detail-label">High / Low</div>
+        <div class="day-detail-value">
+          ${Math.round(dayData.temp.max)}° / ${Math.round(dayData.temp.min)}°
+        </div>
+      </div>
+
+      <div class="day-detail-item">
+        <div class="day-detail-label">Feels Like</div>
+        <div class="day-detail-value">
+          ${Math.round(dayData.feels_like.day)}°
+        </div>
+      </div>
+
+      <div class="day-detail-item">
+        <div class="day-detail-label">Humidity</div>
+        <div class="day-detail-value">
+          ${dayData.humidity}%
+        </div>
+      </div>
+
+      <div class="day-detail-item">
+        <div class="day-detail-label">Pressure</div>
+        <div class="day-detail-value">
+          ${dayData.pressure}
+        </div>
+      </div>
+
+      <div class="day-detail-item">
+        <div class="day-detail-label">Rain Chance</div>
+        <div class="day-detail-value">
+          ${Math.round((dayData.pop || 0) * 100)}%
+        </div>
+      </div>
+
+      <div class="day-detail-item">
+        <div class="day-detail-label">Rain Amount</div>
+        <div class="day-detail-value">
+          ${rainAmount}
+        </div>
+      </div>
+
+      <div class="day-detail-item">
+        <div class="day-detail-label">Wind</div>
+        <div class="day-detail-value">
+          ${Math.round(dayData.wind_speed)} mph ${degToCompass(dayData.wind_deg)}
+        </div>
+      </div>
+
+      <div class="day-detail-item">
+        <div class="day-detail-label">UV Index</div>
+        <div class="day-detail-value">
+          ${Math.round(dayData.uvi)}
+        </div>
+      </div>
+    </div>
+
+  `;
+
+  document.getElementById(
+    'dayDetailModal'
+  ).classList.add(
+    'active'
+  );
+
+}
+
+function closeDayDetailModal(){
+
+  document.getElementById(
+    'dayDetailModal'
+  ).classList.remove(
+    'active'
+  );
+
+}
+
 // Handle escape key to close modal
 
 document.addEventListener('keydown',(e)=>{
@@ -2091,6 +2441,8 @@ document.addEventListener('keydown',(e)=>{
     closeSettingsPopup();
 
     closeChartModal();
+
+    closeDayDetailModal();
 
   }
 
@@ -2116,6 +2468,12 @@ function renderForecast(data){
 
     card.className =
       'forecast-card';
+
+    card.onclick = ()=>{
+
+      openDayDetailModal(i);
+
+    };
 
     const d =
       new Date();
@@ -2195,7 +2553,10 @@ function renderForecast(data){
       document.createElement('div');
 
     card.className =
-      'forecast-card';
+      'forecast-card forecast-hourly-card';
+
+    card.style.cursor =
+      'default';
 
     const hour =
       new Date(
