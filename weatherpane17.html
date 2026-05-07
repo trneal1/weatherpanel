@@ -305,6 +305,34 @@ body{
   display:flex;
   justify-content:space-between;
   align-items:center;
+  gap:8px;
+}
+
+.chart-title > span:first-child{
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.chart-title-actions{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex:0 0 auto;
+}
+
+.chart-next-label{
+  min-width:34px;
+  padding:2px 6px;
+  border:1px solid rgba(255,255,255,0.16);
+  border-radius:6px;
+  background:rgba(255,255,255,0.08);
+  color:rgba(255,255,255,0.76);
+  font-size:10px;
+  font-weight:bold;
+  line-height:1.4;
+  text-align:center;
 }
 
 .chart-expand-btn{
@@ -945,13 +973,20 @@ canvas{
           id="tempFeelsTitle"
         >
           <span>36 Hour Temperature</span>
-          <button
-            class="chart-expand-btn"
-            onclick="event.stopPropagation(); openChartModal(showingTemperature ? 'tempChart' : 'feelsLikeChart')"
-            title="Expand chart"
-          >
-            ⤢
-          </button>
+          <div class="chart-title-actions">
+            <span
+              id="tempFeelsNext"
+              class="chart-next-label"
+              title="Next chart"
+            >FL</span>
+            <button
+              class="chart-expand-btn"
+              onclick="event.stopPropagation(); openChartModal(showingTemperature ? 'tempChart' : 'feelsLikeChart')"
+              title="Expand chart"
+            >
+              ⤢
+            </button>
+          </div>
         </div>
 
         <div
@@ -985,13 +1020,20 @@ canvas{
           id="windHumidityTitle"
         >
           <span>36 Hour Wind</span>
-          <button
-            class="chart-expand-btn"
-            onclick="event.stopPropagation(); openChartModal(showingWind ? 'windChart' : 'humidityChart')"
-            title="Expand chart"
-          >
-            ⤢
-          </button>
+          <div class="chart-title-actions">
+            <span
+              id="windHumidityNext"
+              class="chart-next-label"
+              title="Next chart"
+            >HUM</span>
+            <button
+              class="chart-expand-btn"
+              onclick="event.stopPropagation(); openChartModal(showingWind ? 'windChart' : 'humidityChart')"
+              title="Expand chart"
+            >
+              ⤢
+            </button>
+          </div>
         </div>
 
         <div
@@ -1057,13 +1099,20 @@ canvas{
           id="pressureTitle"
         >
           <span>36 Hour Pressure</span>
-          <button
-            class="chart-expand-btn"
-            onclick="event.stopPropagation(); openChartModal(showingPressure ? 'pressureChart' : 'uvChart')"
-            title="Expand chart"
-          >
-            ⤢
-          </button>
+          <div class="chart-title-actions">
+            <span
+              id="pressureUvNext"
+              class="chart-next-label"
+              title="Next chart"
+            >UV</span>
+            <button
+              class="chart-expand-btn"
+              onclick="event.stopPropagation(); openChartModal(showingPressure ? 'pressureChart' : 'uvChart')"
+              title="Expand chart"
+            >
+              ⤢
+            </button>
+          </div>
         </div>
 
         <div
@@ -1097,13 +1146,20 @@ canvas{
           id="precipRainTitle"
         >
           <span>36 Hour Chance of Precipitation</span>
-          <button
-            class="chart-expand-btn"
-            onclick="event.stopPropagation(); openChartModal(showingPrecip ? 'precipChart' : 'rainAmountChart')"
-            title="Expand chart"
-          >
-            ⤢
-          </button>
+          <div class="chart-title-actions">
+            <span
+              id="precipRainNext"
+              class="chart-next-label"
+              title="Next chart"
+            >RAIN</span>
+            <button
+              class="chart-expand-btn"
+              onclick="event.stopPropagation(); openChartModal(showingPrecip ? 'precipChart' : 'rainAmountChart')"
+              title="Expand chart"
+            >
+              ⤢
+            </button>
+          </div>
         </div>
 
         <div
@@ -1211,6 +1267,36 @@ canvas{
             <option value="24" selected>24h</option>
             <option value="36">36h</option>
             <option value="48">48h</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="settings-field">
+        <label for="radarCloudIntervalSelect">Radar/Cloud</label>
+        <div class="chart-span-control">
+          <select
+            id="radarCloudIntervalSelect"
+            onchange="changeRadarCloudInterval()"
+          >
+            <option value="60">1 min</option>
+            <option value="300" selected>5 min</option>
+            <option value="600">10 min</option>
+            <option value="900">15 min</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="settings-field">
+        <label for="weatherIntervalSelect">Weather</label>
+        <div class="chart-span-control">
+          <select
+            id="weatherIntervalSelect"
+            onchange="changeWeatherInterval()"
+          >
+            <option value="5">5 min</option>
+            <option value="10" selected>10 min</option>
+            <option value="15">15 min</option>
+            <option value="30">30 min</option>
           </select>
         </div>
       </div>
@@ -1350,6 +1436,7 @@ function updateLocationCrosshair(lat,lon){
 let radarLayer = null;
 let cloudLayer = null;
 let activeMapWeatherLayer = 'radar';
+let radarCloudRefreshIntervalSeconds = 300;
 
 function createRadarLayer(){
 
@@ -1444,7 +1531,8 @@ function toggleMapWeatherLayer(){
 
   updateMapWeatherLayer();
 
-  radarRefreshSeconds = 300;
+  radarRefreshSeconds =
+    radarCloudRefreshIntervalSeconds;
 
   updateRadarCountdown();
 
@@ -1459,7 +1547,8 @@ map.on(
 // MAP WEATHER LAYER TIMER
 // ======================================
 
-let radarRefreshSeconds = 300;
+let radarRefreshSeconds =
+  radarCloudRefreshIntervalSeconds;
 
 function updateRadarCountdown(){
 
@@ -1487,7 +1576,8 @@ setInterval(()=>{
 
     updateMapWeatherLayer();
 
-    radarRefreshSeconds = 300;
+    radarRefreshSeconds =
+      radarCloudRefreshIntervalSeconds;
 
   }
 
@@ -1523,6 +1613,8 @@ let forecastPanelIndex = 0;
 let showingHeaderOverview = true;
 let chartHourSpan = 24;
 let latestWeatherData = null;
+let weatherUpdateIntervalMinutes = 10;
+let weatherUpdateTimer = null;
 
 // ======================================
 // DESTROY
@@ -1776,6 +1868,8 @@ function toggleTempFeelsLike(){
       ? getChartTitle('Temperature')
       : getChartTitle('Feels Like');
 
+  updateChartNextLabels();
+
 }
 
 function toggleWindHumidity(){
@@ -1803,6 +1897,8 @@ function toggleWindHumidity(){
     showingWind
       ? getChartTitle('Wind')
       : getChartTitle('Humidity');
+
+  updateChartNextLabels();
 
 }
 
@@ -1832,6 +1928,8 @@ function togglePrecipRain(){
       ? getChartTitle('Chance of Precipitation')
       : getChartTitle('Rain Amount');
 
+  updateChartNextLabels();
+
 }
 
 function togglePressureUv(){
@@ -1860,11 +1958,56 @@ function togglePressureUv(){
       ? getChartTitle('Pressure')
       : getChartTitle('UV Index');
 
+  updateChartNextLabels();
+
 }
 
 function getChartTitle(metric){
 
   return `${chartHourSpan} Hour ${metric}`;
+
+}
+
+function updateChartNextLabels(){
+
+  setChartNextLabel(
+    'tempFeelsNext',
+    showingTemperature ? 'FL' : 'TEMP',
+    showingTemperature ? 'Feels Like' : 'Temperature'
+  );
+
+  setChartNextLabel(
+    'windHumidityNext',
+    showingWind ? 'HUM' : 'WIND',
+    showingWind ? 'Humidity' : 'Wind'
+  );
+
+  setChartNextLabel(
+    'pressureUvNext',
+    showingPressure ? 'UV' : 'PRES',
+    showingPressure ? 'UV Index' : 'Pressure'
+  );
+
+  setChartNextLabel(
+    'precipRainNext',
+    showingPrecip ? 'RAIN' : 'POP',
+    showingPrecip ? 'Rain Amount' : 'Chance of Precipitation'
+  );
+
+}
+
+function setChartNextLabel(id,label,nextChart){
+
+  const nextLabel =
+    document.getElementById(
+      id
+    );
+
+  nextLabel.innerText =
+    label;
+
+  nextLabel.title =
+    `Click chart for ${nextChart}`;
 
 }
 
@@ -1898,6 +2041,8 @@ function updateChartTitles(){
       ? getChartTitle('Chance of Precipitation')
       : getChartTitle('Rain Amount');
 
+  updateChartNextLabels();
+
 }
 
 function changeChartSpan(){
@@ -1916,6 +2061,35 @@ function changeChartSpan(){
     renderCharts(latestWeatherData);
 
   }
+
+}
+
+function changeRadarCloudInterval(){
+
+  radarCloudRefreshIntervalSeconds =
+    Number(
+      document.getElementById(
+        'radarCloudIntervalSelect'
+      ).value
+    );
+
+  radarRefreshSeconds =
+    radarCloudRefreshIntervalSeconds;
+
+  updateRadarCountdown();
+
+}
+
+function changeWeatherInterval(){
+
+  weatherUpdateIntervalMinutes =
+    Number(
+      document.getElementById(
+        'weatherIntervalSelect'
+      ).value
+    );
+
+  startWeatherUpdates();
 
 }
 
@@ -2936,11 +3110,20 @@ let currentLon = DEFAULT_LOCATION.lon;
 
 function startWeatherUpdates(){
 
-  setInterval(()=>{
+  if(weatherUpdateTimer){
 
-    loadWeather(currentLat, currentLon);
+    clearInterval(
+      weatherUpdateTimer
+    );
 
-  }, 600000); // Update weather, charts, and forecast every 10 minutes
+  }
+
+  weatherUpdateTimer =
+    setInterval(()=>{
+
+      loadWeather(currentLat, currentLon);
+
+    }, weatherUpdateIntervalMinutes * 60 * 1000);
 
 }
 
