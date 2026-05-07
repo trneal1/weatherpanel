@@ -972,7 +972,7 @@ canvas{
           class="chart-title"
           id="tempFeelsTitle"
         >
-          <span>36 Hour Temperature</span>
+          <span>36h Temp [°F]</span>
           <div class="chart-title-actions">
             <span
               id="tempFeelsNext"
@@ -1019,7 +1019,7 @@ canvas{
           class="chart-title"
           id="windHumidityTitle"
         >
-          <span>36 Hour Wind</span>
+          <span>36h Wind [mph]</span>
           <div class="chart-title-actions">
             <span
               id="windHumidityNext"
@@ -1098,7 +1098,7 @@ canvas{
           class="chart-title"
           id="pressureTitle"
         >
-          <span>36 Hour Pressure</span>
+          <span>36h Pressure [hPa]</span>
           <div class="chart-title-actions">
             <span
               id="pressureUvNext"
@@ -1145,7 +1145,7 @@ canvas{
           class="chart-title"
           id="precipRainTitle"
         >
-          <span>36 Hour Chance of Precipitation</span>
+          <span>36h Precip [%]</span>
           <div class="chart-title-actions">
             <span
               id="precipRainNext"
@@ -1964,7 +1964,38 @@ function togglePressureUv(){
 
 function getChartTitle(metric){
 
-  return `${chartHourSpan} Hour ${metric}`;
+  const shortMetrics = {
+
+    'Temperature':'Temp',
+    'Feels Like':'Feels',
+    'Chance of Precipitation':'Precip',
+    'Rain Amount':'Rain',
+    'UV Index':'UV'
+
+  };
+
+  const chartUnits = {
+
+    'Temperature':'°F',
+    'Feels Like':'°F',
+    'Wind':'mph',
+    'Humidity':'%',
+    'Pressure':'hPa',
+    'Chance of Precipitation':'%',
+    'Rain Amount':'in',
+    'UV Index':'index'
+
+  };
+
+  const label =
+    shortMetrics[metric] || metric;
+
+  const unit =
+    chartUnits[metric];
+
+  return unit
+    ? `${chartHourSpan}h ${label} [${unit}]`
+    : `${chartHourSpan}h ${label}`;
 
 }
 
@@ -2371,7 +2402,7 @@ function renderCharts(data){
     'humidityChart',
     hourlyData.map(h=>h.humidity),
     '#8b5cf6',
-    'bar',
+    'line',
     hourlyData
   );
 
@@ -2397,7 +2428,7 @@ function renderCharts(data){
       Math.round((h.pop || 0) * 100)
     ),
     '#4ade80',
-    'bar',
+    'line',
     hourlyData
   );
 
@@ -2407,7 +2438,7 @@ function renderCharts(data){
       h.rain?.['1h'] || 0
     ),
     '#22c55e',
-    'bar',
+    'line',
     hourlyData
   );
 
