@@ -1932,7 +1932,7 @@ function togglePrecipRain(){
   ).innerText =
     showingPrecip
       ? getChartTitle('Chance of Precipitation')
-      : getChartTitle('Rain Amount');
+      : getChartTitle('Precipitation Amount');
 
   updateChartNextLabels();
 
@@ -1975,7 +1975,7 @@ function getChartTitle(metric){
     'Temperature':'Temp',
     'Feels Like':'Feels',
     'Chance of Precipitation':'Precip',
-    'Rain Amount':'Rain',
+    'Precipitation Amount':'Precip',
     'UV Index':'UV'
 
   };
@@ -1988,7 +1988,7 @@ function getChartTitle(metric){
     'Humidity':'%',
     'Pressure':'hPa',
     'Chance of Precipitation':'%',
-    'Rain Amount':'in',
+    'Precipitation Amount':'in',
     'UV Index':'index'
 
   };
@@ -2027,8 +2027,8 @@ function updateChartNextLabels(){
 
   setChartNextLabel(
     'precipRainNext',
-    showingPrecip ? 'RAIN' : 'POP',
-    showingPrecip ? 'Rain Amount' : 'Chance of Precipitation'
+    showingPrecip ? 'AMT' : 'POP',
+    showingPrecip ? 'Precipitation Amount' : 'Chance of Precipitation'
   );
 
 }
@@ -2076,7 +2076,7 @@ function updateChartTitles(){
   ).innerText =
     showingPrecip
       ? getChartTitle('Chance of Precipitation')
-      : getChartTitle('Rain Amount');
+      : getChartTitle('Precipitation Amount');
 
   updateChartNextLabels();
 
@@ -2288,6 +2288,36 @@ function degToCompass(deg){
 
 }
 
+function mmToInches(mm){
+
+  return (mm || 0) / 25.4;
+
+}
+
+function getPrecipAmountInches(weatherPeriod){
+
+  if(!weatherPeriod){
+
+    return 0;
+
+  }
+
+  const rainMm =
+    typeof weatherPeriod.rain === 'number'
+      ? weatherPeriod.rain
+      : weatherPeriod.rain?.['1h'] || 0;
+
+  const snowMm =
+    typeof weatherPeriod.snow === 'number'
+      ? weatherPeriod.snow
+      : weatherPeriod.snow?.['1h'] || 0;
+
+  return mmToInches(
+    rainMm + snowMm
+  );
+
+}
+
 // ======================================
 // WEATHER
 // ======================================
@@ -2441,7 +2471,7 @@ function renderCharts(data){
   rainAmountChart = createChart(
     'rainAmountChart',
     hourlyData.map(h=>
-      h.rain?.['1h'] || 0
+      getPrecipAmountInches(h)
     ),
     '#22c55e',
     'line',
@@ -2629,10 +2659,13 @@ function openDayDetailModal(dayIndex){
       }
     );
 
-  const rainAmount =
-    dayData.rain
-      ? `${dayData.rain.toFixed(2)}" rain`
-      : '0.00" rain';
+  const precipAmountInches =
+    getPrecipAmountInches(dayData);
+
+  const precipAmount =
+    precipAmountInches
+      ? `${precipAmountInches.toFixed(2)}" precip`
+      : '0.00" precip';
 
   document.getElementById(
     'dayDetailContent'
@@ -2687,9 +2720,9 @@ function openDayDetailModal(dayIndex){
       </div>
 
       <div class="day-detail-item">
-        <div class="day-detail-label">Rain Amount</div>
+        <div class="day-detail-label">Precip Amount</div>
         <div class="day-detail-value">
-          ${rainAmount}
+          ${precipAmount}
         </div>
       </div>
 
@@ -2764,10 +2797,13 @@ function openHourlyDetailModal(hourIndex){
       }
     );
 
-  const rainAmount =
-    hourData.rain?.['1h']
-      ? `${hourData.rain['1h'].toFixed(2)}" rain`
-      : '0.00" rain';
+  const precipAmountInches =
+    getPrecipAmountInches(hourData);
+
+  const precipAmount =
+    precipAmountInches
+      ? `${precipAmountInches.toFixed(2)}" precip`
+      : '0.00" precip';
 
   const visibility =
     hourData.visibility
@@ -2813,9 +2849,9 @@ function openHourlyDetailModal(hourIndex){
       </div>
 
       <div class="day-detail-item">
-        <div class="day-detail-label">Rain Amount</div>
+        <div class="day-detail-label">Precip Amount</div>
         <div class="day-detail-value">
-          ${rainAmount}
+          ${precipAmount}
         </div>
       </div>
 
@@ -2969,7 +3005,7 @@ function renderForecast(data){
           border-top:1px solid rgba(255,255,255,0.1);
         "
       >
-        ${(data.daily[i].rain || 0).toFixed(2)}" rain
+        ${getPrecipAmountInches(data.daily[i]).toFixed(2)}" precip
       </div>
 
     `;
