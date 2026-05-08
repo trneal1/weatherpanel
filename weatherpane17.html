@@ -1464,8 +1464,8 @@ canvas{
 // CONFIG
 // ======================================
 
-const OPENWEATHER_API_KEY =
-  "af97131a6dddc89d7e21bd1c05ff0de1";
+const GOOGLE_WEATHER_API_KEY =
+  "AIzaSyABWmHcA4PPyj6gAZ-Ctn0nt8yxT8GnvRI";
 
 const DEFAULT_LOCATION = {
 
@@ -2393,6 +2393,12 @@ function getPrecipAmountInches(weatherPeriod){
 
   }
 
+  if(typeof weatherPeriod.qpf_inches === 'number'){
+
+    return weatherPeriod.qpf_inches;
+
+  }
+
   const rainMm =
     typeof weatherPeriod.rain === 'number'
       ? weatherPeriod.rain
@@ -2421,19 +2427,324 @@ function getPrecipAmountInches(weatherPeriod){
 // WEATHER
 // ======================================
 
+function googleWeatherUrl(endpoint,lat,lon,params={}){
+
+  const url =
+    new URL(
+      `https://weather.googleapis.com/v1/${endpoint}:lookup`
+    );
+
+  url.searchParams.set(
+    'key',
+    GOOGLE_WEATHER_API_KEY
+  );
+
+  url.searchParams.set(
+    'location.latitude',
+    lat
+  );
+
+  url.searchParams.set(
+    'location.longitude',
+    lon
+  );
+
+  url.searchParams.set(
+    'unitsSystem',
+    'IMPERIAL'
+  );
+
+  Object.entries(params).forEach(([key,value])=>{
+
+    url.searchParams.set(
+      key,
+      value
+    );
+
+  });
+
+  return url.toString();
+
+}
+
+async function fetchGoogleWeather(endpoint,lat,lon,params){
+
+  const response =
+    await fetch(
+      googleWeatherUrl(endpoint,lat,lon,params)
+    );
+
+  if(!response.ok){
+
+    let detail = '';
+
+    try{
+
+      const errorBody =
+        await response.json();
+
+      detail =
+        errorBody.error && errorBody.error.message
+          ? `: ${errorBody.error.message}`
+          : '';
+
+    }
+    catch(_err){
+
+      detail = '';
+
+    }
+
+    throw new Error(
+      `Google Weather API ${endpoint} failed: ${response.status}${detail}`
+    );
+
+  }
+
+  return response.json();
+
+}
+
+function conditionText(condition){
+
+  return condition &&
+    condition.description &&
+    condition.description.text
+      ? condition.description.text
+      : 'Unknown';
+
+}
+
+function conditionType(condition){
+
+  return condition && condition.type
+    ? condition.type.replaceAll('_',' ')
+    : conditionText(condition);
+
+}
+
+function temperatureDegrees(value){
+
+  return value && typeof value.degrees === 'number'
+    ? value.degrees
+    : 0;
+
+}
+
+function precipProbability(value){
+
+  return value &&
+    value.probability &&
+    typeof value.probability.percent === 'number'
+      ? value.probability.percent / 100
+      : 0;
+
+}
+
+function precipQuantityInches(value){
+
+  return value &&
+    value.qpf &&
+    typeof value.qpf.quantity === 'number'
+      ? value.qpf.quantity
+      : 0;
+
+}
+
+function normalizeGoogleHour(hour){
+
+  return {
+
+    dt:Math.floor(
+      new Date(hour.interval.startTime).getTime() / 1000
+    ),
+    weather:[
+      {
+        main:conditionType(hour.weatherCondition),
+        description:conditionText(hour.weatherCondition)
+      }
+    ],
+    temp:temperatureDegrees(hour.temperature),
+    feels_like:temperatureDegrees(hour.feelsLikeTemperature),
+    humidity:hour.relativeHumidity || 0,
+    pressure:Math.round(
+      hour.airPressure
+        ? hour.airPressure.meanSeaLevelMillibars
+        : 0
+    ),
+    uvi:hour.uvIndex || 0,
+    pop:precipProbability(hour.precipitation),
+    qpf_inches:precipQuantityInches(hour.precipitation),
+    wind_speed:hour.wind && hour.wind.speed
+      ? hour.wind.speed.value
+      : 0,
+    wind_deg:hour.wind && hour.wind.direction
+      ? hour.wind.direction.degrees
+      : 0,
+    visibility:hour.visibility && hour.visibility.unit === 'MILES'
+      ? hour.visibility.distance * 1609.344
+      : 0,
+    clouds:hour.cloudCover || 0,
+    dew_point:temperatureDegrees(hour.dewPoint)
+
+  };
+
+}
+
+function normalizeGoogleDay(day){
+
+  const dayPart =
+    day.daytimeForecast || {};
+
+  const nightPart =
+    day.nighttimeForecast || {};
+
+  return {
+
+    dt:Math.floor(
+      new Date(day.interval.startTime).getTime() / 1000
+    ),
+    weather:[
+      {
+        main:conditionType(dayPart.weatherCondition),
+        description:conditionText(dayPart.weatherCondition)
+      }
+    ],
+    temp:{
+      max:temperatureDegrees(day.maxTemperature),
+      min:temperatureDegrees(day.minTemperature)
+    },
+    feels_like:{
+      day:temperatureDegrees(day.feelsLikeMaxTemperature)
+    },
+    humidity:dayPart.relativeHumidity || nightPart.relativeHumidity || 0,
+    pressure:Math.round(
+      dayPart.airPressure
+        ? dayPart.airPressure.meanSeaLevelMillibars
+        : 0
+    ),
+    uvi:dayPart.uvIndex || 0,
+    pop:Math.max(
+      precipProbability(dayPart.precipitation),
+      precipProbability(nightPart.precipitation)
+    ),
+    qpf_inches:
+      precipQuantityInches(dayPart.precipitation) +
+      precipQuantityInches(nightPart.precipitation),
+    wind_speed:dayPart.wind && dayPart.wind.speed
+      ? dayPart.wind.speed.value
+      : 0,
+    wind_deg:dayPart.wind && dayPart.wind.direction
+      ? dayPart.wind.direction.degrees
+      : 0
+
+  };
+
+}
+
+function normalizeGoogleWeatherData(current,hourly,daily){
+
+  const hourlyData =
+    (hourly.forecastHours || []).map(
+      normalizeGoogleHour
+    );
+
+  const dailyData =
+    (daily.forecastDays || []).map(
+      normalizeGoogleDay
+    );
+
+  return {
+
+    current:{
+      weather:[
+        {
+          main:conditionType(current.weatherCondition),
+          description:conditionText(current.weatherCondition)
+        }
+      ],
+      temp:temperatureDegrees(current.temperature),
+      humidity:current.relativeHumidity || 0,
+      pressure:Math.round(
+        current.airPressure
+          ? current.airPressure.meanSeaLevelMillibars
+          : 0
+      ),
+      wind_speed:current.wind && current.wind.speed
+        ? current.wind.speed.value
+        : 0,
+      wind_deg:current.wind && current.wind.direction
+        ? current.wind.direction.degrees
+        : 0
+    },
+    hourly:hourlyData,
+    daily:dailyData
+
+  };
+
+}
+
 async function loadWeather(lat,lon){
 
   try{
 
-    const url =
+    if(
+      !GOOGLE_WEATHER_API_KEY ||
+      GOOGLE_WEATHER_API_KEY === 'YOUR_GOOGLE_MAPS_API_KEY'
+    ){
 
-      `https://api.openweathermap.org/data/3.0/onecall?lat=${lat}&lon=${lon}&exclude=minutely,alerts&units=imperial&appid=${OPENWEATHER_API_KEY}`;
+      throw new Error(
+        'Add your Google Maps Platform API key to GOOGLE_WEATHER_API_KEY.'
+      );
 
-    const response =
-      await fetch(url);
+    }
+
+    const [
+      current,
+      hourly,
+      daily
+    ] = await Promise.all([
+
+      fetchGoogleWeather(
+        'currentConditions',
+        lat,
+        lon
+      ),
+      fetchGoogleWeather(
+        'forecast/hours',
+        lat,
+        lon,
+        {
+          hours:48,
+          pageSize:24
+        }
+      ),
+      fetchGoogleWeather(
+        'forecast/days',
+        lat,
+        lon,
+        {
+          days:8,
+          pageSize:8
+        }
+      )
+
+    ]);
 
     const data =
-      await response.json();
+      normalizeGoogleWeatherData(
+        current,
+        hourly,
+        daily
+      );
+
+    if(!data.hourly.length || !data.daily.length){
+
+      throw new Error(
+        'Google Weather API returned incomplete forecast data.'
+      );
+
+    }
 
     document.getElementById(
       'weatherSummary'
@@ -2490,7 +2801,17 @@ async function loadWeather(lat,lon){
 
   catch(err){
 
-    console.log(err);
+    console.error(err);
+
+    document.getElementById(
+      'weatherSummary'
+    ).innerText =
+      err.message || 'Weather unavailable';
+
+    document.getElementById(
+      'tempMetric'
+    ).innerText =
+      '--';
 
   }
 
@@ -3036,7 +3357,13 @@ function renderForecast(data){
 
   dailyPanel.innerHTML = '';
 
-  for(let i=0;i<8;i++){
+  const dailyCount =
+    Math.min(
+      8,
+      data.daily.length
+    );
+
+  for(let i=0;i<dailyCount;i++){
 
     const card =
       document.createElement('div');
@@ -3200,6 +3527,109 @@ function renderHourlyForecastStrip(data,panelId,startHour){
 // ZIP SEARCH
 // ======================================
 
+function getAddressComponent(components,type){
+
+  const match =
+    components.find(component=>
+      component.types.includes(type)
+    );
+
+  return match
+    ? match.long_name
+    : '';
+
+}
+
+function formatGeocodeName(result,zip){
+
+  const components =
+    result.address_components || [];
+
+  const city =
+    getAddressComponent(
+      components,
+      'locality'
+    ) ||
+    getAddressComponent(
+      components,
+      'postal_town'
+    );
+
+  const state =
+    getAddressComponent(
+      components,
+      'administrative_area_level_1'
+    );
+
+  if(city && state){
+
+    return `${city}, ${state}`;
+
+  }
+
+  return result.formatted_address || zip;
+
+}
+
+async function geocodeZipCode(zip){
+
+  const url =
+    new URL(
+      'https://maps.googleapis.com/maps/api/geocode/json'
+    );
+
+  url.searchParams.set(
+    'address',
+    zip
+  );
+
+  url.searchParams.set(
+    'components',
+    'country:US'
+  );
+
+  url.searchParams.set(
+    'key',
+    GOOGLE_WEATHER_API_KEY
+  );
+
+  const response =
+    await fetch(
+      url.toString()
+    );
+
+  if(!response.ok){
+
+    throw new Error(
+      `Google Geocoding API failed: ${response.status}`
+    );
+
+  }
+
+  const data =
+    await response.json();
+
+  if(data.status !== 'OK' || !data.results.length){
+
+    throw new Error(
+      data.error_message || `No location found for ${zip}`
+    );
+
+  }
+
+  const result =
+    data.results[0];
+
+  return {
+
+    lat:result.geometry.location.lat,
+    lon:result.geometry.location.lng,
+    name:formatGeocodeName(result,zip)
+
+  };
+
+}
+
 async function changeZipCode(){
 
   const zip =
@@ -3215,15 +3645,8 @@ async function changeZipCode(){
 
   try{
 
-    const geoURL =
-
-      `https://api.openweathermap.org/geo/1.0/zip?zip=${zip},US&appid=${OPENWEATHER_API_KEY}`;
-
-    const response =
-      await fetch(geoURL);
-
     const geo =
-      await response.json();
+      await geocodeZipCode(zip);
 
     currentLat = geo.lat;
     currentLon = geo.lon;
