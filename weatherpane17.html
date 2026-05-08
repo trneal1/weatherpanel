@@ -449,6 +449,39 @@ body{
   margin-top:2px;
 }
 
+.forecast-daily-meta{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:1px;
+  line-height:1.15;
+}
+
+.forecast-daily-meta span{
+  display:block;
+}
+
+.forecast-daily-precip{
+  color:rgba(255,255,255,0.86);
+}
+
+.forecast-precip{
+  width:100%;
+  margin-top:4px;
+  padding-top:4px;
+  border-top:1px solid rgba(255,255,255,0.1);
+  color:rgba(255,255,255,0.78);
+  font-size:10px;
+  line-height:1.15;
+  text-align:center;
+  white-space:normal;
+}
+
+.forecast-hourly-card .forecast-precip{
+  margin-top:5px;
+  font-size:10px;
+}
+
 canvas{
   width:100% !important;
   height:100% !important;
@@ -759,6 +792,22 @@ canvas{
     height:34px;
   }
 
+  .forecast-summary{
+    display:none;
+  }
+
+  .forecast-card{
+    padding:6px 5px;
+  }
+
+  .forecast-icon{
+    margin-bottom:2px;
+  }
+
+  .forecast-daily-meta{
+    margin-top:3px;
+  }
+
 
   .chart-span-control select,
   .zip-search input,
@@ -840,6 +889,48 @@ canvas{
 
   .map-panel{
     min-height:180px;
+  }
+
+  .forecast-strip{
+    gap:5px;
+  }
+
+  .forecast-card{
+    padding:5px 3px;
+    border-radius:12px;
+  }
+
+  .forecast-day{
+    font-size:10px;
+    margin-bottom:2px;
+  }
+
+  .forecast-icon{
+    font-size:19px;
+    margin-bottom:2px;
+  }
+
+  .forecast-summary{
+    display:none;
+  }
+
+  .forecast-temp{
+    font-size:15px;
+  }
+
+  .forecast-low,
+  .forecast-precip{
+    font-size:9px;
+  }
+
+  .forecast-toggle-btn{
+    width:38px;
+    font-size:11px;
+  }
+
+  .forecast-layout{
+    grid-template-columns:minmax(0,1fr) 38px;
+    gap:6px;
   }
 
 }
@@ -1745,7 +1836,7 @@ function createChart(
   for(let i=0;i<data.length;i++){
 
     const t = new Date(
-      hourlyData[i]?.dt
+      hourlyData[i] && hourlyData[i].dt
         ? hourlyData[i].dt * 1000
         : Date.now() + i * 60 * 60 * 1000
     );
@@ -2305,12 +2396,20 @@ function getPrecipAmountInches(weatherPeriod){
   const rainMm =
     typeof weatherPeriod.rain === 'number'
       ? weatherPeriod.rain
-      : weatherPeriod.rain?.['1h'] || 0;
+      : (
+        weatherPeriod.rain
+          ? weatherPeriod.rain['1h'] || weatherPeriod.rain['3h'] || 0
+          : 0
+      );
 
   const snowMm =
     typeof weatherPeriod.snow === 'number'
       ? weatherPeriod.snow
-      : weatherPeriod.snow?.['1h'] || 0;
+      : (
+        weatherPeriod.snow
+          ? weatherPeriod.snow['1h'] || weatherPeriod.snow['3h'] || 0
+          : 0
+      );
 
   return mmToInches(
     rainMm + snowMm
@@ -2943,7 +3042,7 @@ function renderForecast(data){
       document.createElement('div');
 
     card.className =
-      'forecast-card';
+      'forecast-card forecast-daily-card';
 
     card.onclick = ()=>{
 
@@ -2990,22 +3089,15 @@ function renderForecast(data){
         )}°
       </div>
 
-      <div class="forecast-low">
-        Low ${Math.round(
-          data.daily[i].temp.min
-        )}°
-      </div>
-
-      <div
-        style="
-          font-size:10px;
-          opacity:0.7;
-          margin-top:4px;
-          padding-top:4px;
-          border-top:1px solid rgba(255,255,255,0.1);
-        "
-      >
-        ${getPrecipAmountInches(data.daily[i]).toFixed(2)}" precip
+      <div class="forecast-low forecast-daily-meta">
+        <span>
+          Low ${Math.round(
+            data.daily[i].temp.min
+          )}°
+        </span>
+        <span class="forecast-daily-precip">
+          ${getPrecipAmountInches(data.daily[i]).toFixed(2)}" precip
+        </span>
       </div>
 
     `;
@@ -3090,16 +3182,10 @@ function renderHourlyForecastStrip(data,panelId,startHour){
         )}°
       </div>
 
-      <div
-        style="
-          margin-top:6px;
-          font-size:11px;
-          opacity:0.75;
-        "
-      >
+      <div class="forecast-precip">
         ${Math.round(
           (data.hourly[i].pop || 0) * 100
-        )}% rain
+        )}% / ${getPrecipAmountInches(data.hourly[i]).toFixed(2)}"
       </div>
 
     `;
