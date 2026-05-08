@@ -1452,6 +1452,8 @@ function createRadarLayer(){
 
       transparent:true,
 
+      _t:Date.now(),
+
       opacity:0.72
 
     }
@@ -1485,6 +1487,8 @@ function removeMapWeatherLayers(){
       radarLayer
     );
 
+    radarLayer = null;
+
   }
 
   if(cloudLayer){
@@ -1492,6 +1496,8 @@ function removeMapWeatherLayers(){
     map.removeLayer(
       cloudLayer
     );
+
+    cloudLayer = null;
 
   }
 
@@ -1574,10 +1580,10 @@ setInterval(()=>{
 
   if(radarRefreshSeconds <= 0){
 
-    updateMapWeatherLayer();
-
     radarRefreshSeconds =
       radarCloudRefreshIntervalSeconds;
+
+    updateMapWeatherLayer();
 
   }
 
