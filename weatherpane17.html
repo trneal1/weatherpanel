@@ -2331,35 +2331,190 @@ function updateForecastPanelDisplay(){
 // WIND DIRECTIONS
 // ======================================
 
-function getWeatherIcon(weatherMain){
+function getWeatherIcon(weatherMain,options={}){
 
   let icon = '☀️';
 
   const weather =
-    weatherMain.toLowerCase();
+    (weatherMain || '').toLowerCase();
 
-  if(weather.includes('rain')){
+  const description =
+    (options.description || '').toLowerCase();
+
+  const cloudCover =
+    typeof options.clouds === 'number'
+      ? options.clouds
+      : null;
+
+  const condition =
+    `${weather} ${description}`;
+
+  const isNight =
+    !!options.isNight;
+
+  if(condition.includes('rain')){
 
     icon = '🌧️';
 
   }
-  else if(weather.includes('cloud')){
-
-    icon = '☁️';
-
-  }
-  else if(weather.includes('snow')){
+  else if(condition.includes('snow')){
 
     icon = '❄️';
 
   }
-  else if(weather.includes('thunder')){
+  else if(condition.includes('thunder')){
 
     icon = '⛈️';
 
   }
+  else if(
+    condition.includes('cloud') ||
+    condition.includes('sun') ||
+    condition.includes('clear') ||
+    condition.includes('overcast')
+  ){
+
+    icon = getCloudCoverIcon(
+      condition,
+      cloudCover,
+      isNight
+    );
+
+  }
 
   return icon;
+
+}
+
+function getCloudCoverIcon(condition,cloudCover,isNight){
+
+  let cover = cloudCover;
+
+  if(cover === null){
+
+    if(condition.includes('mostly sunny')){
+
+      cover = 20;
+
+    }
+    else if(condition.includes('partly sunny')){
+
+      cover = 40;
+
+    }
+    else if(condition.includes('partly cloudy')){
+
+      cover = 55;
+
+    }
+    else if(condition.includes('mostly cloudy')){
+
+      cover = 80;
+
+    }
+    else if(
+      condition.includes('overcast') ||
+      condition.includes('cloudy')
+    ){
+
+      cover = 95;
+
+    }
+    else{
+
+      cover = 0;
+
+    }
+
+  }
+
+  if(isNight){
+
+    if(cover >= 85){
+
+      return '☁️';
+
+    }
+
+    if(cover >= 35){
+
+      return '🌙☁️';
+
+    }
+
+    return '🌙';
+
+  }
+
+  if(cover >= 85){
+
+    return '☁️';
+
+  }
+
+  if(cover >= 65){
+
+    return '🌥️';
+
+  }
+
+  if(cover >= 40){
+
+    return '⛅';
+
+  }
+
+  if(cover >= 15){
+
+    return '🌤️';
+
+  }
+
+  return '☀️';
+
+}
+
+function isNightForecastHour(data,hourData){
+
+  const hourTime =
+    hourData && hourData.dt
+      ? hourData.dt * 1000
+      : null;
+
+  if(hourTime){
+
+    const daylightDay =
+      data.daily.find(day=>
+        day.sunrise &&
+        day.sunset &&
+        hourTime >= day.sunrise * 1000 &&
+        hourTime < day.sunset * 1000
+      );
+
+    if(daylightDay){
+
+      return false;
+
+    }
+
+    const hasSunEvents =
+      data.daily.some(day=>
+        day.sunrise &&
+        day.sunset
+      );
+
+    if(hasSunEvents){
+
+      return true;
+
+    }
+
+  }
+
+  const hour =
+    new Date(hourTime || Date.now()).getHours();
+
+  return hour < 7 || hour >= 19;
 
 }
 
@@ -2551,6 +2706,19 @@ function precipQuantityInches(value){
 
 }
 
+function timestampSeconds(value){
+
+  const time =
+    value
+      ? new Date(value).getTime()
+      : NaN;
+
+  return Number.isNaN(time)
+    ? null
+    : Math.floor(time / 1000);
+
+}
+
 function normalizeGoogleHour(hour){
 
   return {
@@ -2599,6 +2767,9 @@ function normalizeGoogleDay(day){
   const nightPart =
     day.nighttimeForecast || {};
 
+  const sunEvents =
+    day.sunEvents || {};
+
   return {
 
     dt:Math.floor(
@@ -2636,7 +2807,10 @@ function normalizeGoogleDay(day){
       : 0,
     wind_deg:dayPart.wind && dayPart.wind.direction
       ? dayPart.wind.direction.degrees
-      : 0
+      : 0,
+    clouds:dayPart.cloudCover || 0,
+    sunrise:timestampSeconds(sunEvents.sunriseTime),
+    sunset:timestampSeconds(sunEvents.sunsetTime)
 
   };
 
@@ -3393,7 +3567,12 @@ function renderForecast(data){
       );
 
     let icon = getWeatherIcon(
-      data.daily[i].weather[0].main
+      data.daily[i].weather[0].main,
+      {
+        description:data.daily[i].weather[0].description,
+        clouds:data.daily[i].clouds,
+        isNight:false
+      }
     );
 
     card.innerHTML = `
@@ -3490,7 +3669,15 @@ function renderHourlyForecastStrip(data,panelId,startHour){
       );
 
     const hourlyIcon = getWeatherIcon(
-      data.hourly[i].weather[0].main
+      data.hourly[i].weather[0].main,
+      {
+        description:data.hourly[i].weather[0].description,
+        clouds:data.hourly[i].clouds,
+        isNight:isNightForecastHour(
+          data,
+          data.hourly[i]
+        )
+      }
     );
 
     card.innerHTML = `
